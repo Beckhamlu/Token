@@ -1,0 +1,11 @@
+llama-cpp-python
+pymupdf
+faiss-cpu
+pyyaml
+tqdm
+nltk
+transformers
+sentence-transformers
+rank_bm25
+langchain
+pytest

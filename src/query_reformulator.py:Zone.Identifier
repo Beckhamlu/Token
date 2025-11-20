@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://claude.ai/chat/02dc7e4a-b08e-4edb-b23c-e454e551704b
+HostUrl=https://claude.ai/api/organizations/1dce50f9-3a95-48b7-a772-b6c799e23baa/conversations/02dc7e4a-b08e-4edb-b23c-e454e551704b/wiggle/download-file?path=%2Fmnt%2Fuser-data%2Foutputs%2Fquery_reformulator.py

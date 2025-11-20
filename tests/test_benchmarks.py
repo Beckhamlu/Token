@@ -187,11 +187,13 @@ def get_tokensmith_answer(question, config, golden_chunks=None):
     )
     
     # Create QueryPlanConfig from our test config
+    use_indexed_chunks = False
     cfg = QueryPlanConfig(
         chunk_config=QueryPlanConfig.get_chunk_config(config),
         top_k=config.get("top_k", 5),
         pool_size=config.get("pool_size", 60),
         embed_model=config.get("embed_model"),
+        use_indexed_chunks=use_indexed_chunks,
         ensemble_method=config.get("retrieval_method", "rrf"),
         rrf_k=60,
         ranker_weights=config.get("ranker_weights", {"faiss": 0.6, "bm25": 0.4}),

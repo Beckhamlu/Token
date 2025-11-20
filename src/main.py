@@ -12,6 +12,9 @@ from src.ranking.ranker import EnsembleRanker
 from src.preprocessing.chunking import DocumentChunker
 from src.retriever import apply_seg_filter, BM25Retriever, FAISSRetriever, load_artifacts
 from src.query_enhancement import generate_hypothetical_document
+from src.conversation_memory import ConversationMemory
+from src.followup_detector import FollowUpDetector
+from src.query_reformulator import QueryReformulator
 
 
 def parse_args() -> argparse.Namespace:
@@ -248,6 +251,11 @@ def run_chat_session(args: argparse.Namespace, cfg: QueryPlanConfig):
     logger = get_logger()
     # planner = HeuristicQueryPlanner(cfg)
 
+    # Initialize conversation memory components
+    conversation_memory = ConversationMemory(max_turns=5)
+    followup_detector = FollowUpDetector()
+    query_reformulator = QueryReformulator()
+
     # Load artifacts, initialize retrievers and rankers once before the loop.
     print("Welcome to Tokensmith! Initializing chat...")
     try:
@@ -291,9 +299,51 @@ def run_chat_session(args: argparse.Namespace, cfg: QueryPlanConfig):
             if q.lower() in {"exit", "quit"}:
                 print("Goodbye!")
                 break
+            # Handle special commands
+            if q.lower() == "history":
+                display_history(conversation_memory)
+                continue
+
+            if q.lower() == "clear":
+                conversation_memory.clear()
+                print("✓ Conversation memory cleared")
+                continue
+
+            # Detect and reformulate follow-ups
+            has_history = not conversation_memory.is_empty()
+            previous_query = conversation_memory.get_last_turn().query if has_history else None
+
+            analysis = followup_detector.analyze(
+                q, 
+                has_history=has_history,
+                previous_query=previous_query
+            )
+
+            # Reformulate if follow-up
+            query_for_retrieval = q
+            if analysis.is_followup:
+                query_for_retrieval, method = query_reformulator.reformulate(
+                    q, conversation_memory, analysis
+                )
+    
+                if method != "none":
+                    print(f"\n🔄 Follow-up detected (confidence: {analysis.confidence:.2f})")
+                    print(f"   Original:     {q}")
+                    print(f"   Reformulated: {query_for_retrieval}")
+                    print(f"   Method:       {method}\n")
 
             # Use the single query function
-            ans = get_answer(q, cfg, args, logger=logger,artifacts=artifacts)
+            ans = get_answer(query_for_retrieval, cfg, args, logger=logger, artifacts=artifacts)
+
+            # Store turn in memory
+            conversation_memory.add_turn(
+                query=q,  # Original query
+                answer=ans,
+                metadata={
+                    "was_followup": analysis.is_followup,
+                    "reformulated_query": query_for_retrieval
+            }
+)
 
             print("\n=================== START OF ANSWER ===================")
             print(ans.strip() if ans and ans.strip() else "(No output from model)")
@@ -310,6 +360,24 @@ def run_chat_session(args: argparse.Namespace, cfg: QueryPlanConfig):
 
     # TODO: Fix completion logging.
     # logger.log_query_complete()
+        
+def display_history(memory):
+    """Display conversation history."""
+    if memory.is_empty():
+        print("No conversation history.")
+        return
+    
+    print("\n" + "="*60)
+    print("CONVERSATION HISTORY")
+    print("="*60)
+    
+    for i, turn in enumerate(memory.get_recent_turns(5), 1):
+        print(f"\nTurn {i}:")
+        print(f"  Q: {turn.query}")
+        preview = turn.answer[:150] + "..." if len(turn.answer) > 150 else turn.answer
+        print(f"  A: {preview}")
+    
+    print("="*60)
 
 
 def main():
